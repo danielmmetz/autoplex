@@ -1,0 +1,11 @@
+[Unit]
+Description=Run autoplex every 3 or so minutes
+Requires=autoplex.service
+
+[Timer]
+Unit=autoplex.service
+OnUnitActiveSec=3m
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

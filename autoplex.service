@@ -1,0 +1,8 @@
+[Unit]
+Description=Completed torrent auto-extracter.
+
+[Service]
+ExecStart=/usr/local/bin/autoplex
+
+[Install]
+WantedBy=multi-user.target
