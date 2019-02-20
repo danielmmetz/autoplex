@@ -1,8 +1,11 @@
 [Unit]
-Description=Completed torrent auto-extracter.
+Description=extract completed torrents
 
 [Service]
+User=daniel
+Group=daniel
 ExecStart=/usr/local/bin/autoplex
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
