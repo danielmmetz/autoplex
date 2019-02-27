@@ -3,6 +3,7 @@ package finder
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	rpc "github.com/hekmon/transmissionrpc"
 )
@@ -42,4 +43,22 @@ func Contains(dir, needle string) (bool, error) {
 		return false, err
 	}
 	return files[needle], nil
+}
+
+func FindMKVS(dir string) ([]string, error) {
+	var mkvPaths []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), ".mkv") {
+			mkvPaths = append(mkvPaths, path)
+			return nil
+		}
+		return nil
+	})
+	return mkvPaths, err
 }
