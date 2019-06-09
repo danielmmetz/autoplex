@@ -17,6 +17,7 @@ import (
 )
 
 const destDir = "/media/TV"
+const mediaDir = "/media"
 
 var sample = regexp.MustCompile("(?i)sample")
 
@@ -100,7 +101,7 @@ func processRar(path string) (containsRar bool, err error) {
 		return true, err
 	}
 
-	found, err := finder.Contains(destDir, targetMKVName)
+	found, err := finder.Contains(mediaDir, targetMKVName)
 	if err != nil {
 		log.Printf("error searching for %s in %s: %v", targetMKVName, destDir, err)
 		return true, err
@@ -144,7 +145,7 @@ func processMKVS(path string) (containsMKV bool, err error) {
 		if sample.MatchString(mkvPath) {
 			continue
 		}
-		found, newErr := finder.Contains(destDir, filepath.Base(mkvPath))
+		found, newErr := finder.Contains(mediaDir, filepath.Base(mkvPath))
 		if newErr != nil {
 			log.Printf("error searching for %s in %s: %v", filepath.Base(mkvPath), destDir, err)
 			err = multierr.Append(err, newErr)
