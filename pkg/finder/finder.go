@@ -27,20 +27,22 @@ func filterFinished(in []*rpc.Torrent) []*rpc.Torrent {
 	return results
 }
 
-func Contains(dir, needle string) (bool, error) {
+func Contains(needle string, dirs ...string) (bool, error) {
 	files := make(map[string]bool)
-	err := filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
+	for _, dir := range dirs {
+		err := filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			files[info.Name()] = true
 			return nil
+		})
+		if err != nil {
+			return false, err
 		}
-		files[info.Name()] = true
-		return nil
-	})
-	if err != nil {
-		return false, err
 	}
 	return files[needle], nil
 }
