@@ -13,4 +13,4 @@ RUN go mod download
 COPY . /autoplex
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o autoplex
 
-ENTRYPOINT ./autoplex
+ENTRYPOINT ["./autoplex"]
