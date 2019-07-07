@@ -1,4 +1,4 @@
 - repo: git://github.com/dnephin/pre-commit-golang
-  sha: HEAD
+  rev: HEAD
   hooks:
     - id: golangci-lint

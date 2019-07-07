@@ -1,45 +1,81 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
+	"time"
 
 	rpc "github.com/hekmon/transmissionrpc"
+	"github.com/pkg/errors"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"go.uber.org/multierr"
 
 	"github.com/danielmmetz/autoplex/pkg/extract"
 	"github.com/danielmmetz/autoplex/pkg/finder"
 )
 
-const destDir = "/media/TV"
-
-var mediaDirs = []string{"/media/TV", "/media/Movies"}
-
 var sample = regexp.MustCompile("(?i)sample")
 
-// init evaluates necessary pre-conditions, terminating the program if they fail.
-func init() {
-	// Ensure unrar exists within $PATH
+func main() {
+	pflag.Duration(
+		"frequency",
+		1*time.Minute,
+		"duration between runs",
+	)
+	pflag.String(
+		"dest",
+		"/media/TV",
+		"destination directory for extracted files",
+	)
+	pflag.StringSlice(
+		"media-dir",
+		[]string{"/media/TV", "/media/Movies"},
+		"directory in which to search for previously extracted files",
+	)
+	pflag.Parse()
+	_ = viper.BindPFlags(pflag.CommandLine)
+	destDir := viper.GetString("dest")
+	mediaDirs := viper.GetStringSlice("media-dir")
+
 	if err := exec.Command("which", "unrar").Run(); err != nil {
 		log.Fatalln("error: could not find unrar")
 	}
-}
-
-func main() {
-	log.Println("starting...")
 	tc, err := rpc.New("localhost", "rpcuser", "rpcpass", nil)
 	if err != nil {
 		log.Fatalln("error intiializing tranmission client: ", err)
 	}
 
+	ticker := time.NewTicker(viper.GetDuration("frequency"))
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	for range ticker.C {
+		select {
+		case <-ticker.C:
+			fmt.Println("run starting")
+			if err := work(tc, destDir, mediaDirs); err != nil {
+				log.Println(err)
+			}
+			fmt.Println("run successful")
+		case <-sigs:
+			os.Exit(0)
+		}
+	}
+
+}
+
+func work(tc *rpc.Client, destDir string, mediaDirs []string) error {
 	torrents, err := finder.GetFinishedTorrents(tc)
 	if err != nil {
-		log.Fatalln("error getting torrents: ", err)
+		return errors.Wrap(err, "error getting torrents")
 	}
 
 	for _, candidate := range torrents {
@@ -58,23 +94,23 @@ func main() {
 			// log.Println("skipping consideration of non-directory:", path)
 			continue
 		}
-		if containsRar, err := processRar(path); err != nil {
+		if containsRar, err := processRar(path, destDir, mediaDirs); err != nil {
 			log.Printf("error during processRar(%s): %v", path, err)
 			continue
 		} else if containsRar { // success. no need to continue trying
 			continue
 		}
-		if _, err := processMKVS(path); err != nil {
+		if _, err := processMKVS(path, destDir, mediaDirs); err != nil {
 			log.Printf("error during processMKVS(%s): %v", path, err)
 			continue
 		}
 	}
-	log.Println("run successful. exiting now...")
+	return nil
 }
 
 // processRar looks in path for .rar files. If present, attempts to find an .mkv
 // within the archive and extract it to destDir.
-func processRar(path string) (containsRar bool, err error) {
+func processRar(path string, destDir string, mediaDirs []string) (containsRar bool, err error) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		log.Printf("error listing files in directory %v: %v", path, err)
@@ -134,7 +170,7 @@ func processRar(path string) (containsRar bool, err error) {
 	return true, nil
 }
 
-func processMKVS(path string) (containsMKV bool, err error) {
+func processMKVS(path string, destDir string, mediaDirs []string) (containsMKV bool, err error) {
 	mkvPaths, err := finder.FindMKVS(path)
 	if err != nil {
 		log.Printf("error finding mkv in directory %v: %v", path, err)
