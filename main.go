@@ -57,6 +57,11 @@ func main() {
 	ticker := time.NewTicker(viper.GetDuration("frequency"))
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	if err := work(tc, destDir, mediaDirs); err != nil {
+		log.Println(err)
+	}
+
 	for range ticker.C {
 		select {
 		case <-ticker.C:
