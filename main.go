@@ -43,8 +43,13 @@ func main() {
 	)
 	pflag.Parse()
 	_ = viper.BindPFlags(pflag.CommandLine)
+	frequency := viper.GetDuration("frequency")
 	destDir := viper.GetString("dest")
 	mediaDirs := viper.GetStringSlice("media-dir")
+	log.Println("running with the following parameters:")
+	log.Println("\tfrequency: ", frequency)
+	log.Println("\tdest: ", destDir)
+	log.Println("\tmedia-dirs: ", mediaDirs)
 
 	if err := exec.Command("which", "unrar").Run(); err != nil {
 		log.Fatalln("error: could not find unrar")
@@ -54,7 +59,7 @@ func main() {
 		log.Fatalln("error intiializing tranmission client: ", err)
 	}
 
-	ticker := time.NewTicker(viper.GetDuration("frequency"))
+	ticker := time.NewTicker(frequency)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
