@@ -31,25 +31,29 @@ func main() {
 		1*time.Minute,
 		"duration between runs",
 	)
-	pflag.String(
-		"dest",
-		"/media/TV",
-		"destination directory for extracted files",
+	pflag.StringSlice(
+		"src",
+		[]string{},
+		"source directory for downloaded files",
 	)
 	pflag.StringSlice(
-		"media-dir",
-		[]string{"/media/TV", "/media/Movies"},
-		"directory in which to search for previously extracted files",
+		"dest",
+		[]string{},
+		"destination directory for extracted files",
 	)
 	pflag.Parse()
 	_ = viper.BindPFlags(pflag.CommandLine)
 	frequency := viper.GetDuration("frequency")
-	destDir := viper.GetString("dest")
-	mediaDirs := viper.GetStringSlice("media-dir")
+	srcs := viper.GetStringSlice("src")
+	dests := viper.GetStringSlice("dest")
+	if len(srcs) != len(dests) {
+		log.Fatal("configuration error: unequal number of sources and destinations")
+	}
+	pairs := zip(srcs, dests)
+
 	log.Println("running with the following parameters:")
 	log.Println("\tfrequency: ", frequency)
-	log.Println("\tdest: ", destDir)
-	log.Println("\tmedia-dirs: ", mediaDirs)
+	log.Printf("\tpairs: %+v", pairs)
 
 	if err := exec.Command("which", "unrar").Run(); err != nil {
 		log.Fatalln("error: could not find unrar")
@@ -63,7 +67,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	if err := work(tc, destDir, mediaDirs); err != nil {
+	if err := work(tc, pairs...); err != nil {
 		log.Println(err)
 	}
 
@@ -71,7 +75,7 @@ func main() {
 		select {
 		case <-ticker.C:
 			fmt.Println("run starting")
-			if err := work(tc, destDir, mediaDirs); err != nil {
+			if err := work(tc, pairs...); err != nil {
 				log.Println(err)
 			}
 			fmt.Println("run successful")
@@ -82,13 +86,41 @@ func main() {
 
 }
 
-func work(tc *rpc.Client, destDir string, mediaDirs []string) error {
+type srcDest struct {
+	src  string
+	dest string
+}
+
+func zip(srcs, dests []string) []srcDest {
+	pairs := []srcDest{}
+	for i := range srcs {
+		if i >= len(dests) {
+			break
+		}
+		pairs = append(pairs, srcDest{src: srcs[i], dest: dests[i]})
+	}
+	return pairs
+}
+
+func work(tc *rpc.Client, srcDests ...srcDest) error {
 	torrents, err := finder.GetFinishedTorrents(tc)
 	if err != nil {
 		return errors.Wrap(err, "error getting torrents")
 	}
 
 	for _, candidate := range torrents {
+		var dest string
+		for _, p := range srcDests {
+			if *candidate.DownloadDir == p.src {
+				dest = p.dest
+				break
+			}
+		}
+		if dest == "" {
+			log.Print("no src-dest pair for processing ", *candidate.DownloadDir)
+			continue
+		}
+
 		path := filepath.Join(*candidate.DownloadDir, *candidate.Name)
 		file, err := os.Open(path)
 		if err != nil {
@@ -104,13 +136,14 @@ func work(tc *rpc.Client, destDir string, mediaDirs []string) error {
 			// log.Println("skipping consideration of non-directory:", path)
 			continue
 		}
-		if containsRar, err := processRar(path, destDir, mediaDirs); err != nil {
+
+		if containsRar, err := processRar(path, dest); err != nil {
 			log.Printf("error during processRar(%s): %v", path, err)
 			continue
 		} else if containsRar { // success. no need to continue trying
 			continue
 		}
-		if _, err := processMKVS(path, destDir, mediaDirs); err != nil {
+		if _, err := processMKVS(path, dest); err != nil {
 			log.Printf("error during processMKVS(%s): %v", path, err)
 			continue
 		}
@@ -120,7 +153,7 @@ func work(tc *rpc.Client, destDir string, mediaDirs []string) error {
 
 // processRar looks in path for .rar files. If present, attempts to find an .mkv
 // within the archive and extract it to destDir.
-func processRar(path string, destDir string, mediaDirs []string) (containsRar bool, err error) {
+func processRar(path string, destDir string) (containsRar bool, err error) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		log.Printf("error listing files in directory %v: %v", path, err)
@@ -148,7 +181,7 @@ func processRar(path string, destDir string, mediaDirs []string) (containsRar bo
 		return true, err
 	}
 
-	found, err := finder.Contains(targetMKVName, mediaDirs...)
+	found, err := finder.Contains(targetMKVName, destDir)
 	if err != nil {
 		log.Printf("error searching for %s in %s: %v", targetMKVName, destDir, err)
 		return true, err
@@ -180,7 +213,7 @@ func processRar(path string, destDir string, mediaDirs []string) (containsRar bo
 	return true, nil
 }
 
-func processMKVS(path string, destDir string, mediaDirs []string) (containsMKV bool, err error) {
+func processMKVS(path string, destDir string) (containsMKV bool, err error) {
 	mkvPaths, err := finder.FindMKVS(path)
 	if err != nil {
 		log.Printf("error finding mkv in directory %v: %v", path, err)
@@ -192,7 +225,7 @@ func processMKVS(path string, destDir string, mediaDirs []string) (containsMKV b
 		if sample.MatchString(mkvPath) {
 			continue
 		}
-		found, newErr := finder.Contains(filepath.Base(mkvPath), mediaDirs...)
+		found, newErr := finder.Contains(filepath.Base(mkvPath), destDir)
 		if newErr != nil {
 			log.Printf("error searching for %s in %s: %v", filepath.Base(mkvPath), destDir, err)
 			err = multierr.Append(err, newErr)
