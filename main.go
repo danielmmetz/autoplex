@@ -71,7 +71,7 @@ func main() {
 		log.Println(err)
 	}
 
-	for range ticker.C {
+	for {
 		select {
 		case <-ticker.C:
 			fmt.Println("run starting")
@@ -80,7 +80,8 @@ func main() {
 			}
 			fmt.Println("run successful")
 		case <-sigs:
-			os.Exit(0)
+			fmt.Println("exiting")
+			return
 		}
 	}
 
