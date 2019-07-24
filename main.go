@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -51,8 +50,8 @@ func main() {
 	}
 	pairs := zip(srcs, dests)
 
-	log.Println("running with the following parameters:")
-	log.Println("\tfrequency: ", frequency)
+	log.Print("running with the following parameters:")
+	log.Print("\tfrequency: ", frequency)
 	log.Printf("\tpairs: %+v", pairs)
 
 	if err := exec.Command("which", "unrar").Run(); err != nil {
@@ -68,19 +67,19 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	if err := work(tc, pairs...); err != nil {
-		log.Println(err)
+		log.Print(err)
 	}
 
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Println("run starting")
+			log.Print("run starting")
 			if err := work(tc, pairs...); err != nil {
-				log.Println(err)
+				log.Print(err)
 			}
-			fmt.Println("run successful")
+			log.Print("run successful")
 		case <-sigs:
-			fmt.Println("exiting")
+			log.Print("exiting")
 			return
 		}
 	}
@@ -134,7 +133,7 @@ func work(tc *rpc.Client, srcDests ...srcDest) error {
 			continue
 		}
 		if !stat.IsDir() {
-			// log.Println("skipping consideration of non-directory:", path)
+			// log.Print("skipping consideration of non-directory:", path)
 			continue
 		}
 
@@ -178,7 +177,7 @@ func processRar(path string, destDir string) (containsRar bool, err error) {
 	// Identify the desired file
 	targetMKVName := extract.FindMKV(archiveContents)
 	if targetMKVName == "" {
-		log.Println("no .mkv found in", rar.Name())
+		log.Print("no .mkv found in", rar.Name())
 		return true, err
 	}
 
@@ -197,7 +196,7 @@ func processRar(path string, destDir string) (containsRar bool, err error) {
 		return true, err
 	}
 
-	log.Println("extracting", targetMKVName)
+	log.Print("extracting", targetMKVName)
 	cmd := exec.Command("unrar", "p", "-inul", rarPath, targetMKVName)
 	cmd.Stdout = f
 	if err := cmd.Run(); err != nil {
@@ -210,7 +209,7 @@ func processRar(path string, destDir string) (containsRar bool, err error) {
 		_ = os.Remove(f.Name())
 		return true, err
 	}
-	log.Println("successfully extracted rar from", filepath.Base(path))
+	log.Print("successfully extracted rar from", filepath.Base(path))
 	return true, nil
 }
 
@@ -235,12 +234,12 @@ func processMKVS(path string, destDir string) (containsMKV bool, err error) {
 			// log.Printf("found %v. skipping linking", filepath.Base(mkvPath))
 			continue
 		}
-		log.Println("linking", filepath.Base(mkvPath))
+		log.Print("linking", filepath.Base(mkvPath))
 		if newErr := os.Link(mkvPath, filepath.Join(destDir, filepath.Base(mkvPath))); newErr != nil {
 			err = multierr.Append(err, newErr)
 			continue
 		}
-		log.Println("successfully linked", filepath.Base(mkvPath))
+		log.Print("successfully linked", filepath.Base(mkvPath))
 	}
 	return true, err
 }
