@@ -66,7 +66,8 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	if err := work(tc, pairs...); err != nil {
+	w := worker{tc: tc, srcDestPairs: pairs, retries: 1}
+	if err := w.work(); err != nil {
 		log.Print(err)
 	}
 
@@ -74,7 +75,7 @@ func main() {
 		select {
 		case <-ticker.C:
 			log.Print("run starting")
-			if err := work(tc, pairs...); err != nil {
+			if err := w.work(); err != nil {
 				log.Print(err)
 			}
 			log.Print("run successful")
@@ -102,15 +103,43 @@ func zip(srcs, dests []string) []srcDest {
 	return pairs
 }
 
-func work(tc *rpc.Client, srcDests ...srcDest) error {
-	torrents, err := finder.GetFinishedTorrents(tc)
+type worker struct {
+	tc           *rpc.Client
+	srcDestPairs []srcDest
+	retries      int
+	resultCache  resultCache
+}
+
+type resultCache struct {
+	success  map[string]bool
+	attempts map[string]int
+}
+
+func (c *resultCache) RecordAttempt(key string, success bool) {
+	if c.success == nil {
+		c.success = make(map[string]bool)
+	}
+	if c.attempts == nil {
+		c.attempts = make(map[string]int)
+	}
+
+	c.success[key] = success
+	c.attempts[key] = c.attempts[key] + 1
+}
+
+func (w *worker) work() error {
+	torrents, err := finder.GetFinishedTorrents(w.tc)
 	if err != nil {
 		return errors.Wrap(err, "error getting torrents")
 	}
 
 	for _, candidate := range torrents {
+		if w.resultCache.success[*candidate.Name] || w.resultCache.attempts[*candidate.Name] >= w.retries {
+			continue
+		}
+
 		var dest string
-		for _, p := range srcDests {
+		for _, p := range w.srcDestPairs {
 			if *candidate.DownloadDir == p.src {
 				dest = p.dest
 				break
@@ -118,6 +147,7 @@ func work(tc *rpc.Client, srcDests ...srcDest) error {
 		}
 		if dest == "" {
 			log.Print("no src-dest pair for processing ", *candidate.DownloadDir)
+			w.resultCache.RecordAttempt(*candidate.Name, false)
 			continue
 		}
 
@@ -125,28 +155,35 @@ func work(tc *rpc.Client, srcDests ...srcDest) error {
 		file, err := os.Open(path)
 		if err != nil {
 			log.Printf("error opening filepath %s: %v", path, err)
+			w.resultCache.RecordAttempt(*candidate.Name, false)
 			continue
 		}
 		stat, err := file.Stat()
 		if err != nil {
 			log.Printf("error calling Stat() on filepath %s: %v", path, err)
+			w.resultCache.RecordAttempt(*candidate.Name, false)
 			continue
 		}
 		if !stat.IsDir() {
-			// log.Print("skipping consideration of non-directory:", path)
+			w.resultCache.RecordAttempt(*candidate.Name, false)
 			continue
 		}
 
 		if containsRar, err := processRar(path, dest); err != nil {
 			log.Printf("error during processRar(%s): %v", path, err)
+			w.resultCache.RecordAttempt(*candidate.Name, false)
 			continue
 		} else if containsRar { // success. no need to continue trying
+			w.resultCache.RecordAttempt(*candidate.Name, true)
 			continue
 		}
-		if _, err := processMKVS(path, dest); err != nil {
+		containsMKV, err := processMKVS(path, dest)
+		if err != nil {
+			w.resultCache.RecordAttempt(*candidate.Name, false)
 			log.Printf("error during processMKVS(%s): %v", path, err)
 			continue
 		}
+		w.resultCache.RecordAttempt(*candidate.Name, containsMKV)
 	}
 	return nil
 }
