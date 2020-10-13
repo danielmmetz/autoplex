@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	rpc "github.com/hekmon/transmissionrpc"
-	"github.com/pkg/errors"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"go.uber.org/multierr"
@@ -130,7 +130,7 @@ func (c *resultCache) RecordAttempt(key string, success bool) {
 func (w *worker) work() error {
 	torrents, err := finder.GetFinishedTorrents(w.tc)
 	if err != nil {
-		return errors.Wrap(err, "error getting torrents")
+		return fmt.Errorf("error getting torrents: %w", err)
 	}
 
 	for _, candidate := range torrents {
