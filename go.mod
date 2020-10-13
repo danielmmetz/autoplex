@@ -2,7 +2,8 @@ module github.com/danielmmetz/autoplex
 
 require (
 	github.com/hekmon/cunits v2.0.0+incompatible // indirect
-	github.com/hekmon/transmissionrpc v0.0.0-20190208163803-7676caffba20
+	github.com/hekmon/cunits/v2 v2.1.0 // indirect
+	github.com/hekmon/transmissionrpc v1.1.0
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/pelletier/go-toml v1.4.0 // indirect
 	github.com/pkg/errors v0.8.1
