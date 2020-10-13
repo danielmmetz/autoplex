@@ -53,6 +53,8 @@ github.com/hekmon/transmissionrpc v0.0.0-20190208163803-7676caffba20 h1:kLI/wuCH
 github.com/hekmon/transmissionrpc v0.0.0-20190208163803-7676caffba20/go.mod h1:b1R6hlzo+gEUNWGh53mw9mPWyYyODdZu/qlVqT+W+PU=
 github.com/hekmon/transmissionrpc v1.1.0 h1:58xY27x2JYxaMlIj7ycKnxqgCm3IjvTxfB7cHPLxOfs=
 github.com/hekmon/transmissionrpc v1.1.0/go.mod h1:qkwhsyD/MQSlWvOE1AC92xajwEveAuGsOvTuOBZEuHc=
+github.com/hekmon/transmissionrpc v1.1.1-0.20200621183139-05b4d9c9659e h1:6bcYl6USkGr+LG3B89BL4VDSwASL1uHCltUltcwuquw=
+github.com/hekmon/transmissionrpc v1.1.1-0.20200621183139-05b4d9c9659e/go.mod h1:qkwhsyD/MQSlWvOE1AC92xajwEveAuGsOvTuOBZEuHc=
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
