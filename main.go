@@ -25,30 +25,16 @@ import (
 var sample = regexp.MustCompile("(?i)sample")
 
 func main() {
-	pflag.Duration(
-		"frequency",
-		1*time.Minute,
-		"duration between runs",
-	)
-	pflag.StringSlice(
-		"src",
-		[]string{},
-		"source directory for downloaded files",
-	)
-	pflag.StringSlice(
-		"dest",
-		[]string{},
-		"destination directory for extracted files",
-	)
+	host := pflag.String("host", "localhost", "host at which to access transmission")
+	frequency := pflag.Duration("frequency", 1*time.Minute, "duration between runs")
+	srcs := pflag.StringSlice("src", []string{}, "source directory for downloaded files")
+	dests := pflag.StringSlice("dest", []string{}, "destination directory for extracted files")
 	pflag.Parse()
 	_ = viper.BindPFlags(pflag.CommandLine)
-	frequency := viper.GetDuration("frequency")
-	srcs := viper.GetStringSlice("src")
-	dests := viper.GetStringSlice("dest")
-	if len(srcs) != len(dests) {
+	if len(*srcs) != len(*dests) {
 		log.Fatal("configuration error: unequal number of sources and destinations")
 	}
-	pairs := zip(srcs, dests)
+	pairs := zip(*srcs, *dests)
 
 	log.Print("running with the following parameters:")
 	log.Print("\tfrequency: ", frequency)
@@ -57,12 +43,12 @@ func main() {
 	if err := exec.Command("which", "unrar").Run(); err != nil {
 		log.Fatalln("error: could not find unrar")
 	}
-	tc, err := rpc.New("localhost", "rpcuser", "rpcpass", nil)
+	tc, err := rpc.New(*host, "rpcuser", "rpcpass", nil)
 	if err != nil {
 		log.Fatalln("error intiializing tranmission client: ", err)
 	}
 
-	ticker := time.NewTicker(frequency)
+	ticker := time.NewTicker(*frequency)
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
