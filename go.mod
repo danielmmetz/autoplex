@@ -24,5 +24,5 @@ require (
 	go.uber.org/atomic v1.4.0 // indirect
 	golang.org/x/sys v0.0.0-20190626221950-04f50cda93cb // indirect
 	golang.org/x/text v0.3.2 // indirect
-	gopkg.in/yaml.v2 v2.2.2 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
