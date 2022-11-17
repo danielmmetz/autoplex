@@ -1,11 +1,12 @@
-FROM fedora:37
+FROM ubuntu:kinetic
 
-RUN dnf update -y \
-    && dnf install -y \
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+        ca-certificates \
         git \
         golang \
         unrar \
-    && dnf clean all \
+	&& rm -rf /var/lib/apt/lists/* \
     && :
 
 WORKDIR /autoplex
