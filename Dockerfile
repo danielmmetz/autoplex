@@ -1,10 +1,11 @@
-FROM golang:1.19.3-alpine
+FROM fedora:37
 
-RUN : \
-    && apk update \
-    && apk add \
+RUN dnf update -y \
+    && dnf install -y \
         git \
+        golang \
         unrar \
+    && dnf clean all \
     && :
 
 WORKDIR /autoplex
