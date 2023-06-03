@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -29,14 +30,26 @@ func main() {
 	frequency := pflag.Duration("frequency", 1*time.Minute, "duration between runs")
 	srcs := pflag.StringSlice("src", []string{}, "source directory for downloaded files")
 	dests := pflag.StringSlice("dest", []string{}, "destination directory for extracted files")
+	modeF := pflag.String("mode", "link", "method by which to create the destination files (copy or link)")
 	pflag.Parse()
 	_ = viper.BindPFlags(pflag.CommandLine)
+	var m mode
+	switch *modeF {
+	case "link":
+		m = link
+	case "copy":
+		m = copy
+	default:
+		log.Fatal("configuration error: mode must be either link or copy")
+	}
+
 	if len(*srcs) != len(*dests) {
 		log.Fatal("configuration error: unequal number of sources and destinations")
 	}
 	pairs := zip(*srcs, *dests)
 
 	log.Print("running with the following parameters:")
+	log.Print("\tmode: ", m)
 	log.Print("\tfrequency: ", frequency)
 	log.Printf("\tpairs: %+v", pairs)
 
@@ -52,7 +65,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	w := worker{tc: tc, srcDestPairs: pairs, retries: 1}
+	w := worker{mode: m, tc: tc, srcDestPairs: pairs, retries: 1}
 	if err := w.work(); err != nil {
 		log.Print(err)
 	}
@@ -90,11 +103,17 @@ func zip(srcs, dests []string) []srcDest {
 }
 
 type worker struct {
+	mode         mode
 	tc           *rpc.Client
 	srcDestPairs []srcDest
 	retries      int
 	resultCache  resultCache
 }
+
+type mode string
+
+const copy mode = "copy"
+const link mode = "link"
 
 type resultCache struct {
 	success  map[string]bool
@@ -163,7 +182,7 @@ func (w *worker) work() error {
 			w.resultCache.RecordAttempt(*candidate.Name, true)
 			continue
 		}
-		containsMKV, err := processMKVS(path, dest)
+		containsMKV, err := w.processMKVS(path, dest)
 		if err != nil {
 			w.resultCache.RecordAttempt(*candidate.Name, false)
 			log.Printf("error during processMKVS(%s): %v", path, err)
@@ -236,7 +255,7 @@ func processRar(path string, destDir string) (containsRar bool, err error) {
 	return true, nil
 }
 
-func processMKVS(path string, destDir string) (containsMKV bool, err error) {
+func (w *worker) processMKVS(path string, destDir string) (containsMKV bool, err error) {
 	mkvPaths, err := finder.FindMKVS(path)
 	if err != nil {
 		log.Printf("error finding mkv in directory %v: %v", path, err)
@@ -257,12 +276,41 @@ func processMKVS(path string, destDir string) (containsMKV bool, err error) {
 			// log.Printf("found %v. skipping linking", filepath.Base(mkvPath))
 			continue
 		}
-		log.Print("linking ", filepath.Base(mkvPath))
-		if newErr := os.Link(mkvPath, filepath.Join(destDir, filepath.Base(mkvPath))); newErr != nil {
-			err = multierr.Append(err, newErr)
-			continue
+		switch w.mode {
+		case link:
+			log.Print("linking ", filepath.Base(mkvPath))
+			if newErr := os.Link(mkvPath, filepath.Join(destDir, filepath.Base(mkvPath))); newErr != nil {
+				err = multierr.Append(err, newErr)
+				continue
+			}
+			log.Print("successfully linked ", filepath.Base(mkvPath))
+		case copy:
+			log.Print("copying ", filepath.Base(mkvPath))
+			if newErr := copyMKV(mkvPath, destDir); newErr != nil {
+				err = multierr.Append(err, newErr)
+				continue
+			}
+			log.Print("successfully copied ", filepath.Base(mkvPath))
 		}
-		log.Print("successfully linked ", filepath.Base(mkvPath))
 	}
 	return true, err
+}
+
+func copyMKV(mkvPath, destDir string) error {
+	original, err := os.Open(mkvPath)
+	if err != nil {
+		return fmt.Errorf("opening %s: %w", mkvPath, err)
+	}
+	defer original.Close()
+
+	f, err := os.Create(filepath.Join(destDir, filepath.Base(mkvPath)))
+	if err != nil {
+		return fmt.Errorf("creating destination file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, original); err != nil {
+		return fmt.Errorf("copying %s: %w", filepath.Base(mkvPath), err)
+	}
+	return nil
 }
